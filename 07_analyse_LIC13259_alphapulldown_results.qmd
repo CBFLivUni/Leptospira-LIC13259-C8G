@@ -1,0 +1,651 @@
+---
+title: "Leptospira LIC13259-C8 screen"
+subtitle: "Analyse LIC13259 pulldown results"
+author: "Emily Johnson"
+date: today
+date-format: short
+format:
+  html:
+    self-contained: true
+    theme: litera
+    toc: true
+editor: source
+code-block-bg: true
+code-block-border-left: "#31BAE9"
+---
+
+# Load libraries
+
+```{r}
+#| output: false
+#| messages: false
+#| warning: false
+
+library(tidyverse)
+library(data.table)
+library(cowplot)
+library(ggpubr)
+library(smplot2)
+library(viridis)
+library(patchwork)
+library(tidytext)
+library(ggsci)
+library(drawProteins)
+source("scripts/palettes.R")
+source("scripts/utilityFunctions.R")
+
+```
+
+# Read in the data
+
+```{r}
+
+input_files <- list.files("results/LIC13259_no_his/alphapulldown/model_rankings/",pattern = ".txt", full.names = TRUE) 
+
+```
+
+```{r}
+#| output: false
+#| messages: false
+#| warning: false
+
+# Run 'extractQCdata' function on input files and extract data
+pulldown_data <- extractAlphaPulldown(input_files)
+
+pulldown_data$ptm_iptm <- as.numeric(pulldown_data$ptm_iptm)
+
+
+pulldown_data <- pulldown_data %>%
+  mutate(Subunit = case_when(
+    grepl(pattern = "F1MX87|P07357|A0A1U7QEJ8|A0A8I6ACZ6", x = ID) ~ "C8A",
+    grepl(pattern = "F1N102|P07358|A0A1U7QQ34|P55314", x = ID) ~ "C8B",
+    grepl(pattern = "A8YXZ2|P07360|A0A1U8CH65|A6JT75", x = ID) ~ "C8G",
+    grepl(pattern = "A0A3Q0DCY6", x = ID) ~ "C8G2"
+    
+    
+  ))
+
+
+```
+
+
+
+# Produce boxplots 
+
+```{r}
+#| messages: false
+#| warning: false
+
+ptm_iptm <- ggplot(pulldown_data, aes(x=Subunit, y=ptm_iptm, fill=Subunit)) +
+  geom_violin(width=0.8, alpha = 0.3, color = NA) +
+  geom_boxplot(width = 0.15, alpha = 1, na.rm = TRUE)+
+  facet_grid(receptor_species ~lepto_species) +
+  scale_fill_manual(values=c("#4bd6de", "#f06448", "#a670b3", "#a670b3")) + 
+  theme_cowplot()+
+  theme(legend.position="none", axis.title.x=element_blank(),
+        axis.text.x = element_text(angle = 45,  hjust=1)) +
+  ylab("0.8 iptm + 0.2 ptm score") #+
+  #ylim(0.2, 0.37)
+
+ptm_iptm <- ptm_iptm + stat_compare_means(method = "anova", label.y = 0.6)  
+
+ptm_iptm
+
+```
+
+```{r}
+#| messages: false
+#| warning: false
+
+ggsave(filename = "figures/alphapulldown/LIC13259_no_his/LIC13259_his_tag.pdf", plot = ptm_iptm,
+  width = 11.5,
+  height = 9,
+  units = c("in"),
+  dpi = 300,
+  limitsize = TRUE,
+  bg = "white")
+
+
+```
+
+
+```{r}
+#| messages: false
+#| warning: false
+
+
+fig1 <- pulldown_data %>%
+  filter(grepl("Bos taurus", receptor_species)) %>%
+  filter(!grepl("L. interrogans_s.Copenhageni", lepto_species)) %>%
+  ggplot(aes(x=lepto_species, y=ptm_iptm)) +
+  geom_jitter(aes(color = lepto_species), position = position_jitter(width = 0.13), alpha = 0.8, size = 0.8) + 
+  geom_boxplot(color = "black", width = 0.4, alpha = 0.3, na.rm = TRUE, outliers = FALSE)+
+  facet_grid(~Subunit) +
+  scale_color_manual(values=c("#F94040", "#FF8080", "#008000", "#76069A", "#B856D7")) + 
+  theme_cowplot() +
+  theme(
+    legend.position = "none",
+    axis.title.x = element_blank(),
+    axis.text.x = element_text(size = 11, angle = 45, hjust = 1, face = "italic")
+  ) +
+  ylab("0.8 iptm + 0.2 ptm score")
+
+fig1
+
+
+save_plot(filename = "figures/L13259_paper/LIC13259_no_his_per_subunit_binding_confidence.pdf", plot = fig1, base_height = 3.6, base_width = 7, bg="white")
+
+```
+
+```{r}
+#| messages: false
+#| warning: false
+
+
+# scale_fill_manual(values=c("#93C83E", "#66b5d1", "#007BA7", "#db7169", "#d42e22"))
+
+fig1B <- pulldown_data %>%
+  filter(grepl("Homo sapiens", receptor_species)) %>%
+  filter(!grepl("L. interrogans_s.Copenhageni", lepto_species)) %>%
+  ggplot(aes(x=lepto_species, y=ptm_iptm)) +
+  geom_jitter(aes(color = lepto_species), position = position_jitter(width = 0.13), alpha = 0.8, size = 0.8) + 
+  geom_boxplot(color = "black", width = 0.4, alpha = 0.3, na.rm = TRUE, outliers = FALSE)+
+  facet_grid(~Subunit) +
+  scale_color_manual(values=c("#F94040", "#FF8080", "#008000", "#76069A", "#B856D7")) + 
+  theme_cowplot() +
+  theme(
+    legend.position = "none",
+    axis.title.x = element_blank(),
+    axis.text.x = element_text(size = 11, angle = 45, hjust = 1, face = "italic")
+  ) +
+  ylab("0.8 iptm + 0.2 ptm score") + 
+  ylim(c(0.15, 0.8))
+
+fig1B
+
+
+save_plot(filename = "figures/L13259_paper/LIC13259_no_his_per_subunit_binding_confidence_HUMAN.pdf", plot = fig1B, base_height = 3.6, base_width = 7, bg="white")
+
+```
+
+```{r}
+#| messages: false
+#| warning: false
+
+
+# scale_fill_manual(values=c("#93C83E", "#66b5d1", "#007BA7", "#db7169", "#d42e22"))
+
+sup_fig1 <- pulldown_data %>%
+  filter(!grepl("L. interrogans_s.Copenhageni", lepto_species)) %>%
+  filter(!grepl("C8G2", Subunit)) %>%
+  ggplot(aes(x=lepto_species, y=ptm_iptm)) +
+  geom_jitter(aes(color = lepto_species), position = position_jitter(width = 0.13), alpha = 0.8, size = 0.8) + 
+  geom_boxplot(color = "black", width = 0.4, alpha = 0.3, na.rm = TRUE, outliers = FALSE)+
+    facet_grid(receptor_species ~Subunit) +
+  scale_color_manual(values=c("#F94040", "#FF8080", "#008000", "#76069A", "#B856D7")) + 
+  theme_cowplot() +
+  theme(
+    legend.position = "none",
+    axis.title.x = element_blank(),
+    axis.text.x = element_text(size = 11, angle = 45, hjust = 1, face = "italic")
+  ) +
+  ylab("0.8 iptm + 0.2 ptm score")
+
+sup_fig1
+
+
+save_plot(filename = "figures/L13259_paper/supplementary_figures/host_LIC13259_per_subunit_binding_confidence.png", plot = sup_fig1, base_height = 9, base_width = 8, bg="white")
+
+```
+
+# Correlate docking scores
+
+## Read in data
+
+```{r}
+
+# Read in results
+full_res <- read.csv("results/LIC13259_no_his/LIC13259_no_his_predictions_with_good_interpae.csv")
+
+
+
+# Annotate with the candidate protein
+full_res$receptor_species <- str_extract(full_res$jobs, "Mus_musculus|Bos_taurus|Rattus_norvegicus|Homo_sapiens|Sus_scrofa|Mesocricetus_auratus|Canis_lupus|Macaca_mulatta")
+full_res$receptor_species <- gsub("_", " ", full_res$receptor_species)
+
+
+# Annotate with bait protein
+full_res$lepto_species <- stringr::str_extract(full_res$jobs, "[^_]*_[^_]*")
+full_res$lepto_species <- gsub("_", " ", full_res$lepto_species)
+
+# Annotate with subunit
+full_res <- full_res %>%
+  mutate(receptor_subunit = case_when(
+    grepl(pattern = "F1MX87|P07357|A0A1U7QEJ8|A0A8I6ACZ6", x = jobs) ~ "C8A",
+    grepl(pattern = "F1N102|P07358|A0A1U7QQ34|P55314", x = jobs) ~ "C8B",
+    grepl(pattern = "A8YXZ2|P07360|A0A1U8CH65|A6JT75", x = jobs) ~ "C8G",
+    grepl(pattern = "A0A3Q0DCY6", x = jobs) ~ "C8G2"
+    
+  ))
+
+# Create joint annotation column
+full_res$anno <- paste0(full_res$receptor_subunit, " ", full_res$lepto_species, " ", full_res$receptor_species)
+
+write.csv(full_res, "results/LIC13259_no_his/LIC13259_predictions_with_good_interpae_annotated.csv")
+
+
+```
+
+
+```{r}
+#| messages: false
+#| warning: false
+
+
+cor_plot_iptm_mpDock <- ggplot(full_res, 
+                               aes(x=iptm_ptm, y=mpDockQ.pDockQ, color=receptor_subunit)) + 
+  geom_point() +
+  sm_statCorr(corr_method = "pearson", fit.params = list(color = 'black')) + 
+  theme_cowplot() +
+  xlab("0.8 iptm + 0.2 ptm") + 
+  ylab("mpDockQ/pDockQ")+ 
+  labs(color = "Subunit") + 
+  geom_hline(yintercept = 0.23, linetype = "dashed") +
+  geom_vline(xintercept = 0.6, linetype = "dashed") +
+  scale_color_manual(values = c("#D50B46", "#13CFBB", "#FCBA71", "#FC6A51", "#28AACB")) 
+
+cor_plot_iptm_mpDock
+
+```
+
+```{r}
+
+# Plot
+cor_plot_iptm_mpDock <- ggplot(full_res, aes(x = iptm_ptm, y = mpDockQ.pDockQ, color = receptor_subunit)) + 
+  geom_point() +
+  stat_cor(method = "pearson", label.x = 0.2, color = "black", aes(group = 1)) + 
+  geom_smooth(method=lm, se=FALSE, col='grey', size=0.5, alpha=0.2) +
+  theme_cowplot() +
+  xlab("0.8 iptm + 0.2 ptm") + 
+  ylab("mpDockQ / pDockQ") + 
+  labs(color = "Subunit") + 
+  geom_hline(yintercept = 0.23, linetype = "dashed") +
+  geom_vline(xintercept = 0.6, linetype = "dashed") +
+  scale_color_manual(values = c("#D50B46", "#13CFBB", "#FCBA71", "#FC6A51", "#28AACB"))
+
+cor_plot_iptm_mpDock
+
+save_plot(filename = "figures/L13259_paper/supplementary_figures/LIC13259_score_correlations.png", plot = cor_plot_iptm_mpDock, base_height = 4, base_width = 6, bg="white")
+
+```
+
+# Interface residues analysis
+
+## LIC13259 residues
+
+### Read in and format data
+
+```{r}
+
+interface_input_files <- list.files("results/LIC13259_no_his/alphapulldown/contacts_summary/", pattern = ".csv", full.names = TRUE) 
+
+```
+
+```{r}
+
+interface_data <- extractInterfaces(interface_input_files, quantile=0.85)
+
+# Annotate with subunit
+interface_data <- interface_data %>%
+  mutate(receptor_subunit = case_when(
+    grepl(pattern = "F1MX87|P07357|A0A1U7QEJ8|A0A8I6ACZ6", x = ID) ~ "C8A",
+    grepl(pattern = "F1N102|P07358|A0A1U7QQ34|P55314", x = ID) ~ "C8B",
+    grepl(pattern = "A8YXZ2|P07360|A0A1U8CH65|A6JT75", x = ID) ~ "C8G",
+    grepl(pattern = "A0A3Q0DCY6", x = ID) ~ "C8G2"
+    
+  ))
+
+
+# Remove truncated C8G
+interface_data <- interface_data %>% 
+  filter(!grepl("truncated", file_name)) %>%
+  filter(!grepl("Copenhageni", file_name))
+  
+
+```
+
+```{r}
+#| message: false
+#| warning: false
+DT::datatable(interface_data[,c(2:6)], 
+              class = "cell-border stripe", 
+              filter= "top", 
+              extensions = "Buttons",
+              options = list(pageLength = 10, pageWidth = 5, dom = 'Bfrtip',
+              buttons = c('copy', 'print', 'csv', 'excel'))
+              )
+
+```
+
+### Produce plots
+
+#### Human
+
+```{r}
+
+interface_data_human <- interface_data %>% filter(grepl('Homo sapiens', receptor_species))
+
+```
+
+```{r}
+#| messages: false
+#| fig-cap: Occurances of amino acid in a binding pair at the interface (human)
+#| warning: false
+
+
+##| fig-width: 5
+##| fig-height: 11
+
+
+interface_data_plots_human <- ggplot(interface_data_human, aes(x=reorder_within(Residue, -Count, interaction(lepto_species, receptor_subunit)), y=Count, fill=lepto_species)) +
+  geom_bar(stat="identity", width=0.6) +
+  facet_wrap(~ lepto_species + receptor_subunit, scales = "free", ncol=3) +
+  theme_minimal() + 
+  scale_fill_manual(values = project_palettes$lepto_species) + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1), legend.position="none") + 
+  ylab("Total count") + 
+  xlab("Residue") +
+  scale_x_reordered()
+
+interface_data_plots_human
+
+```
+
+
+```{r}
+
+save_plot(filename = "figures/alphapulldown/LIC13259_no_his/LIC13259_interface_residues_human.pdf", plot = interface_data_plots_human, base_height = 8, base_width = 7, bg="white")
+
+```
+
+#### Cow
+
+```{r}
+
+interface_data_cow <- interface_data %>% filter(grepl('Bos taurus', receptor_species))
+
+```
+
+```{r}
+#| messages: false
+#| fig-cap: Occurances of amino acid in a binding pair at the interface (cow)
+#| warning: false
+
+
+##| fig-width: 5
+##| fig-height: 11
+
+
+interface_data_plots_cow <- ggplot(interface_data_cow, aes(x=reorder_within(Residue, -Count, interaction(lepto_species, receptor_subunit)), y=Count, fill=lepto_species)) +
+  geom_bar(stat="identity", width=0.6) +
+  facet_wrap(~ lepto_species + receptor_subunit, scales = "free", ncol=3) +
+  theme_minimal() + 
+  scale_fill_manual(values = project_palettes$lepto_species) + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1), legend.position="none") + 
+  ylab("Total count") + 
+  xlab("Residue") +
+  scale_x_reordered()
+
+interface_data_plots_cow
+
+```
+
+
+```{r}
+
+save_plot(filename = "figures/alphapulldown/LIC13259_no_his/LIC13259_interface_residues_cow.pdf", plot = interface_data_plots_cow, base_height = 8, base_width = 7, bg="white")
+
+```
+
+```{r}
+
+fig2 <- interface_data_cow %>%
+  filter(grepl("C8G", receptor_subunit)) %>%
+  ggplot(aes(x=reorder_within(Residue, -Count, interaction(lepto_species, receptor_subunit)), y=Count, fill=lepto_species)) +
+  geom_col(width=0.6) +
+  facet_wrap(~ lepto_species, scales = "free", ncol=5) +
+  scale_fill_manual(values = project_palettes$lepto_species) + 
+  theme_cowplot() +
+  #background_grid() +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.05))) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1), legend.position="none") + 
+  ylab("Total count") + 
+  xlab("Residue") +
+  scale_x_reordered() 
+
+fig2
+
+
+save_plot(filename = "figures/L13259_paper/LIC13259_residues_binding_C8G.png", plot = fig2, base_height = 4, base_width = 12.5, bg="white")
+
+
+```
+
+
+## C8 residues
+
+### Read in and format data
+
+```{r}
+
+residue_pair_files <- list.files("results/LIC13259_no_his/alphapulldown/residue_pairs/",pattern = ".csv", full.names = TRUE) 
+
+```
+
+```{r}
+
+residue_pair_data <- extractResiduePairs(residue_pair_files)
+
+# Annotate with subunit
+residue_pair_data <- residue_pair_data %>%
+mutate(receptor_subunit = case_when(
+    grepl(pattern = "F1MX87|P07357|A0A1U7QEJ8|A0A8I6ACZ6", x = ID) ~ "C8A",
+    grepl(pattern = "F1N102|P07358|A0A1U7QQ34|P55314", x = ID) ~ "C8B",
+    grepl(pattern = "A8YXZ2|P07360|A0A1U8CH65|A6JT75", x = ID) ~ "C8G",
+    grepl(pattern = "A0A3Q0DCY6", x = ID) ~ "C8G2"
+    
+  ))
+
+
+# Remove truncated C8G
+residue_pair_data <- residue_pair_data %>% 
+  filter(!grepl("truncated", file_name)) %>%
+  filter(!grepl("Copenhageni", file_name))
+  
+
+```
+
+#### Human
+
+```{r}
+
+residue_pair_data_human <- residue_pair_data %>% filter(grepl('Homo sapiens', receptor_species))
+
+```
+
+```{r}
+
+# Format data for density plot 
+residue_pair_data_human_format <- residue_pair_data_human[,c(5:10)] %>%
+  distinct() %>%
+  uncount(Candidate_residue_count)
+
+```
+
+
+```{r}
+#| messages: false
+#| fig-cap: LIC13259 binding sites on human C8
+#| warning: false
+
+
+##| fig-width: 5
+##| fig-height: 11
+
+
+candidate_binding_plots <- ggplot(residue_pair_data_human_format, aes(x=Candidate_residue_sequence_position, fill=lepto_species)) +
+  geom_histogram(aes(y = ..density..), binwidth = 1, alpha = 0.8) +
+  geom_density(color = "black", size = 0.01, alpha = 0.2) +
+  geom_rug(sides = "b", length = unit(0.03, "npc"), alpha = 0.2) +
+  facet_wrap(~ lepto_species + receptor_subunit, scales = "free", ncol=3) +
+  theme_minimal() + 
+  scale_fill_manual(values = project_palettes$lepto_species) + 
+  theme(legend.position="none") + 
+  ylab("Density") + 
+  xlab("Residue #") +
+  xlim(0, 550)
+
+candidate_binding_plots
+
+```
+
+```{r}
+
+save_plot(filename = "figures/alphapulldown/LIC13259_no_his/C8_LIC13259_binding_residues_human.pdf", plot = candidate_binding_plots, base_height = 7, base_width = 7, bg="white")
+
+```
+
+
+
+#### Cow
+
+```{r}
+
+residue_pair_data_cow <- residue_pair_data %>% filter(grepl('Bos taurus', receptor_species))
+
+```
+
+```{r}
+
+# Format data for density plot 
+residue_pair_data_cow_format <- residue_pair_data_cow[,c(5:10)] %>%
+  distinct() %>%
+  uncount(Candidate_residue_count)
+
+```
+
+
+```{r}
+#| messages: false
+#| fig-cap: LIC13259 binding sites on bovine C8
+#| warning: false
+
+
+##| fig-width: 5
+##| fig-height: 11
+
+
+candidate_binding_plots <- ggplot(residue_pair_data_cow_format, aes(x=Candidate_residue_sequence_position, fill=lepto_species)) +
+  geom_histogram(aes(y = ..density..), binwidth = 1, alpha = 0.8) +
+  geom_density(color = "black", size = 0.01, alpha = 0.2) +
+  geom_rug(sides = "b", length = unit(0.03, "npc"), alpha = 0.2) +
+  facet_wrap(~ lepto_species + receptor_subunit, scales = "free", ncol=3) +
+  theme_minimal() + 
+  scale_fill_manual(values = project_palettes$lepto_species) + 
+  theme(legend.position="none") + 
+  ylab("Density") + 
+  xlab("Residue #") +
+  xlim(0, 550)
+
+candidate_binding_plots
+
+```
+
+```{r}
+
+save_plot(filename = "figures/alphapulldown/LIC13259_no_his/C8_LIC13259_binding_residues_cow.pdf", plot = candidate_binding_plots, base_height = 7, base_width = 7, bg="white")
+
+```
+
+```{r}
+
+# Just C8G
+residue_pair_data_cow_format_CG8 <- residue_pair_data_cow_format %>% filter(grepl('C8G', receptor_subunit))
+
+
+# Per lepto species plots
+## Produce plots with candidateDensityPlot
+candidate_binding_res_plots <- map(unique(residue_pair_data_cow_format_CG8$lepto_species), ~candidateDensityPlot(residue_pair_data_cow_format_CG8, lepto.species = .x, residue.count=250))
+
+# Rename plots to match species names
+names(candidate_binding_res_plots) <- gsub(" ", "_", unique(residue_pair_data_cow_format_CG8$lepto_species))
+
+# Save plots 
+map(names(candidate_binding_res_plots), function(.x) {
+  
+  save_plot(filename = paste0("figures/alphapulldown/LIC13259_no_his/bovine_C8G_LIC13259_binding_residues_", .x, ".pdf"),
+            plot = candidate_binding_res_plots[[.x]],
+            base_height = 3,
+            base_width = 5,
+            bg="white")
+    })
+
+```
+
+## Specific contacts borgpetersenii LIC13259 & bovine C8G
+
+### Circos plot
+
+```{r}
+
+# Extract top LIC13259 residues found in interface
+LIC13259_interface_residues <- interface_data_cow %>% filter(grepl('C8G', receptor_subunit) & grepl('Leptospira borgpetersenii', lepto_species)) %>% pull(Residue)
+LIC13259_interface_residues <- c(LIC13259_interface_residues, "CYS 156")
+
+# Extract residue pair data
+cow_C8G_borg_LIC13259_residue_pairs <- residue_pair_data_cow %>% filter(grepl('C8G', receptor_subunit) & grepl('Leptospira borgpetersenii', lepto_species)) %>% mutate(Bait_residue = gsub(" A", "", .$Bait_residue), Candidate_residue = gsub(" B", "", .$Candidate_residue))
+
+
+# Annotate residue pair data with amino acid properties
+# Note: columns are called 'sender' and 'receiver' for use in downstream circos function
+cow_C8G_borg_LIC13259_residue_pairs$sender <- sapply(cow_C8G_borg_LIC13259_residue_pairs$Bait_residue, annotateAminoAcid)
+cow_C8G_borg_LIC13259_residue_pairs$receiver <- sapply(cow_C8G_borg_LIC13259_residue_pairs$Candidate_residue, annotateAminoAcid)
+
+
+# Filter residue pair data to prioritise top LIC13259 residues found at interface
+cow_C8G_borg_LIC13259_residue_pairs_filtered <- cow_C8G_borg_LIC13259_residue_pairs[cow_C8G_borg_LIC13259_residue_pairs$Bait_residue %in% LIC13259_interface_residues, ]
+
+# Extract upper quantile and rename columns for plotting purposes
+cow_C8G_borg_LIC13259_residue_pairs_filtered <- cow_C8G_borg_LIC13259_residue_pairs_filtered %>%
+  filter(Count > quantile(Count, 0.7)) %>% 
+  select("Bait_residue", "Candidate_residue", "Count", "sender", "receiver") %>%
+  rename(ligand = "Bait_residue", receptor = "Candidate_residue", weight = "Count")
+
+
+# Create vectors of named colours
+senders_receivers = union(cow_C8G_borg_LIC13259_residue_pairs_filtered$sender %>% unique(), cow_C8G_borg_LIC13259_residue_pairs_filtered$receiver %>% unique()) %>% sort()
+
+colors_sender = c("#eb6654", "#4bd6de", "#455054", "#E69D45") %>% magrittr::set_names(senders_receivers)
+colors_receiver = c("#eb6654", "#4bd6de", "#455054", "#E69D45") %>% magrittr::set_names(senders_receivers)
+
+# Produce plot
+circos <- produceCircosPlot(cow_C8G_borg_LIC13259_residue_pairs_filtered, colors_sender, colors_receiver, title="")
+
+```
+
+
+```{r}
+
+pdf(file = "figures/alphapulldown/LIC13259_no_his/bovine_C8G_borgpetersenii_LIC13259_binding_circos.pdf", width = 8, height = 8)
+circos$circos
+circos$legend
+dev.off()
+
+
+```
+
+```{r}
+sessionInfo()
+```
+
+:::

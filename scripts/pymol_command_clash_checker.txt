@@ -1,0 +1,8 @@
+hide lines, all 
+show cartoon
+
+bg_color white
+set cartoon_fancy_helices, 1
+
+select chain A; color grey10, sele
+select chain B; color grey90, sele

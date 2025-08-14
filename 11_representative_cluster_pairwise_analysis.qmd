@@ -1,0 +1,399 @@
+---
+title: "Leptospira LIC13259-C8 screen"
+subtitle: "Representative clustering pairwise analysis"
+author: "Emily Johnson"
+date: today
+date-format: short
+format:
+  html:
+    self-contained: true
+    theme: litera
+    toc: true
+editor: source
+code-block-bg: true
+code-block-border-left: "#31BAE9"
+---
+
+# Load libraries
+
+```{r}
+#| output: false
+#| messages: false
+#| warning: false
+
+library(tidyverse)
+library(cowplot)
+library(viridis)
+library(patchwork)
+library(tidytext)
+library(pheatmap)
+library(vegan)
+library(igraph)
+library(tidygraph)
+library(ggraph)
+source("scripts/palettes.R")
+source("scripts/utilityFunctions.R")
+
+```
+
+
+# Pairwise comparisons between representative clusters
+
+## Read in data
+
+```{r}
+
+# Define the directory containing the Foldseek output files
+input_files <- "./results/LIC13259_no_his/pairwise_clustering"
+
+# Load and combine all .m8 files into a single dataframe
+files <- list.files(input_files, pattern = "*.m8_report", full.names = TRUE)
+
+# Read and combine data
+pairwise_data <- files %>%
+  map_dfr(~ read.table(.x, header = FALSE, sep = "\t", 
+                       col.names = c("query", "target", "query_chains", "target_chains", 
+                                     "TM_norm_query", "TM_norm_target", "U", "T", 
+                                     "alignment_ID")))
+
+# Remove cophenhageni samples
+pairwise_data  <- pairwise_data %>%
+  filter(!grepl("Copenhageni", query)) %>%
+  filter(!grepl("Copenhageni", target))
+
+
+```
+
+## Create similarity and distance matrix
+
+```{r}
+
+# Extract similarity data
+similarity_data <- pairwise_data %>%
+  dplyr::select(query, target, TM_norm_query) %>% group_by(query, target) %>%
+  #dplyr::filter(query != target) %>%
+  dplyr::summarize(TM_norm_query = max(TM_norm_query, na.rm = TRUE), .groups = 'drop')
+
+# Reshape to wide format
+similarity_matrix <- similarity_data %>%
+  pivot_wider(names_from = target, values_from = TM_norm_query, values_fill = 0) %>%
+  column_to_rownames("query")
+
+# Convert similarity to distance matrix (e.g., 1 - similarity score)
+distance_matrix <- as.matrix(1 - similarity_matrix)
+
+```
+
+
+## Annotate data
+
+```{r}
+
+annotation <- similarity_data %>%
+  dplyr::select("query") %>%
+  unique()
+
+# Add columns for plasminogen species and leptospira species
+annotation$lepto_species <- str_extract(annotation$query, "Leptospira_biflexa|Leptospira_borgpetersenii|Leptospira_interrogans_s.Copenhageni|Leptospira_interrogans|Leptospira_kmetyi|Leptospira_wolffii|Leptospira_ilyithenensis")
+annotation$lepto_species <- gsub("_", " ", annotation$lepto_species)
+annotation$lepto_species <- factor(annotation$lepto_species, ordered = TRUE, levels=c("Leptospira biflexa", "Leptospira ilyithenensis", "Leptospira kmetyi", "Leptospira wolffii", "Leptospira borgpetersenii", "Leptospira interrogans", "Leptospira interrogans s.Copenhageni"))
+
+annotation$receptor_species <- str_extract(annotation$query, "Bos_taurus|Canis_lupus|Homo_sapiens|Macaca_mulatta|Mesocricetus_auratus|Mus_musculus|Rattus_norvegicus|Sus_scrofa")
+annotation$receptor_species <- gsub("_", " ", annotation$receptor_species)
+
+
+annotation$rank <- stringr::str_extract(annotation$query, "[^_]*_[^_]*")
+annotation$rank <- as.numeric(gsub("ranked_", "", annotation$rank))
+
+annotation <- data.frame(annotation)
+
+row.names(annotation) <- annotation$query
+annotation <- annotation[,-1]
+
+```
+
+## Produce heatmap
+
+```{r}
+
+# Colours for column annotation
+anno_cols<-list(lepto_species = project_palettes$lepto_species,
+                receptor_species = project_palettes$host_species)
+
+
+
+# Colour palette for heatmap
+heatmap_cols <- colorRampPalette(ArchRPalettes$coolwarm)(50)
+
+
+```
+
+```{r}
+
+heatmap <- pheatmap(similarity_matrix,
+        annotation_col = annotation,
+        annotation_row = annotation,
+        annotation_colors = anno_cols,
+        cluster_rows=TRUE,
+        cluster_cols=TRUE,
+        scale="none",
+        border_color = NA,
+        color = heatmap_cols,
+        method="ward.D2",
+        show_colnames = F, show_rownames = F)
+
+heatmap
+
+```
+
+
+```{r}
+
+save_plot(filename = "figures/multimer_clustering/LIC13259_no_his/LIC13259_no_his_representative_clusters_pairwise_heatmap.pdf", plot = heatmap[[4]], base_height = 6, base_width = 9, bg="white")
+
+```
+
+## MDS plot
+
+```{r}
+
+distance_matrix <- distance_matrix[,row.names(distance_matrix)]
+
+row.names(distance_matrix) == colnames(distance_matrix)
+
+sym_dist <- (distance_matrix + t(distance_matrix)) / 2
+
+```
+
+
+```{r}
+
+# Run MDS on the symmetrical distance matrix
+mds_result <- cmdscale(as.dist(sym_dist), k = 2) 
+mds_data <- as.data.frame(mds_result)
+colnames(mds_data) <- c("Dim1", "Dim2")
+
+# Merge MDS coordinates with the annotation data
+mds_annotated <- cbind(mds_data, annotation) %>%
+  rownames_to_column(var = "query")
+
+# Leptospira species plot
+mds_lepto_species <- ggplot(mds_annotated, aes(x = Dim1, y = Dim2, color = lepto_species)) +
+  geom_point(size = 2, alpha = 0.8) +
+  scale_color_manual(values = project_palettes$lepto_species) +
+  labs(x = "MDS Dimension 1", y = "MDS Dimension 2", color = "Leptospira species") +
+  theme_minimal_grid() +
+  theme(legend.position = "right") 
+
+# Host species plot
+mds_host_species <- ggplot(mds_annotated, aes(x = Dim1, y = Dim2, color = receptor_species)) +
+  geom_point(size = 2, alpha = 0.8) +
+  scale_color_manual(values = project_palettes$host_species) +
+  labs(x = "MDS Dimension 1", y = "MDS Dimension 2", color = "Host species") +
+  theme_minimal_grid() +
+  theme(legend.position = "right")
+
+# Combine
+mds_plot <- mds_lepto_species + mds_host_species
+
+# Annotate/extract interesting clusters
+label_data_lepto <- mds_annotated %>%
+  filter(Dim1 >= -0.6, Dim1 <= -0.4, Dim2 >= -0.6, Dim2 <= 0)
+label_data_host <- mds_annotated %>%
+  filter(Dim1 >= -0.2, Dim1 <= 0.1, Dim2 >= -0.4, Dim2 <= -0.25)
+
+
+save_plot(filename = "figures/multimer_clustering/LIC13259_no_his/LIC13259_no_his_representative_clusters_pairwise_MDS.pdf", plot = mds_plot, base_height = 4, base_width = 14, bg="white")
+
+```
+
+
+```{r}
+
+# Run nMDS on the asymmetric distance matrix
+nmds_result <- metaMDS(as.dist(distance_matrix), k=2) 
+nmds_data <- plot(nmds_result, type = "t", main = "NMDS for Asymmetric Data")
+nmds_data <- nmds_data$sites
+
+# Merge nMDS coordinates with the annotation data
+nmds_annotated <- cbind(nmds_data, annotation) %>%
+  rownames_to_column(var = "query")
+
+# Leptospira species plot
+nmds_lepto_species <- ggplot(nmds_annotated, aes(x = NMDS1, y = NMDS2, color = lepto_species)) +
+  geom_point(size = 2, alpha = 0.8) +
+  scale_color_manual(values = project_palettes$lepto_species) +
+  labs(x = "NMDS 1", y = "NMDS 2", color = "Leptospira species") +
+  theme_minimal_grid() +
+  theme(legend.position = "right") 
+
+# Host species plot
+nmds_host_species <- ggplot(nmds_annotated, aes(x = NMDS1, y = NMDS2, color = receptor_species)) +
+  geom_point(size = 2, alpha = 0.8) +
+  scale_color_manual(values = project_palettes$host_species) +
+  labs(x = "NMDS 1", y = "NMDS 2", color = "Host species") +
+  theme_minimal_grid() +
+  theme(legend.position = "right")
+
+# Combine
+nmds_plot <- nmds_lepto_species + nmds_host_species
+
+save_plot(filename = "figures/multimer_clustering/LIC13259_no_his/LIC13259_no_his_representative_clusters_pairwise_pcoa.pdf", plot = nmds_plot, base_height = 4, base_width = 14, bg="white")
+
+```
+
+## Network 
+
+### Filter and annotate distance data
+
+```{r}
+
+# Prepare Distance Data
+distance_data <- similarity_data %>%
+  filter(query != target) %>%
+  mutate(TM_norm_query = 1 - TM_norm_query)
+
+# Patterns for Leptospira species and host species
+lepto_species_pattern <- paste(c(
+  "Leptospira_biflexa", "Leptospira_borgpetersenii",
+  "Leptospira_interrogans_s.Copenhageni", "Leptospira_interrogans",
+  "Leptospira_kmetyi", "Leptospira_wolffii", "Leptospira_ilyithenensis"
+), collapse = "|")
+
+host_species_pattern <- paste(c(
+  "Bos_taurus", "Canis_lupus", "Homo_sapiens", "Macaca_mulatta",
+  "Mesocricetus_auratus", "Mus_musculus", "Rattus_norvegicus", "Sus_scrofa"
+), collapse = "|")
+
+
+# Annotate with Leptospira species and host species
+distance_data <- distance_data %>%
+  mutate(
+    query_lepto_species = gsub("_", " ", str_extract(query, lepto_species_pattern)),
+    target_lepto_species = gsub("_", " ", str_extract(target, lepto_species_pattern)),
+    query_host_species = gsub("_", " ", str_extract(query, host_species_pattern)),
+    target_host_species = gsub("_", " ", str_extract(target, host_species_pattern))
+  )
+
+
+# Annotate with cluster sizes
+distance_data <- distance_data %>%
+  left_join(cluster_counts, by = c("query" = "Var1")) %>%
+  rename(query_cluster_size = Freq) %>%
+  left_join(cluster_counts, by = c("target" = "Var1")) %>%
+  rename(target_cluster_size = Freq)
+
+
+# Function to prioritise bovine and human clusters
+get_host_priority <- function(name) {
+  if (grepl("Bos_taurus", name)) {
+    return(1)
+  } else if (grepl("Homo_sapiens", name)) {
+    return(2)
+  } else {
+    return(3)
+  }
+}
+
+# All unique names
+all_names <- unique(c(distance_data$query, distance_data$target))
+
+# Sort names by host species priority and then alphabetically (or by rank if needed)
+sorted_names <- all_names[order(sapply(all_names, get_host_priority), all_names)]
+
+# Generate new name map with desired order
+name_map <- setNames(paste0("Cluster ", seq_along(sorted_names)), sorted_names)
+
+# Rename query and target using updated name_map
+distance_data <- distance_data %>%
+  mutate(
+    query = name_map[query],
+    target = name_map[target]
+  )
+
+
+# Save name map
+write.csv(as.data.frame(name_map), "./results/LIC13259_no_his/cluster_name_map.csv")
+
+```
+
+### Create network images
+
+```{r}
+
+# New colours
+#cols = setNames(c("#93C83E", "#93C83E", "#66b5d1", "#007BA7", "#db7169", "#d42e22"), c("Leptospira biflexa", "Leptospira ilyithenensis", "Leptospira kmetyi", "Leptospira wolffii", "Leptospira borgpetersenii", "Leptospira interrogans"))
+cols = setNames(c("#008000", "#008000", "#B856D7", "#9e4a9b", "#F94040", "#FF8080"), c("Leptospira biflexa", "Leptospira ilyithenensis", "Leptospira kmetyi", "Leptospira wolffii", "Leptospira borgpetersenii", "Leptospira interrogans"))
+
+# Generate network for each host species
+host_species_list <- unique(distance_data$query_host_species)
+
+
+networks <- map(host_species_list, function(host) {
+  file_path <- paste0("./figures/multimer_clustering/LIC13259_no_his/", gsub(" ", "_", host), "_cluster_network.pdf")
+  
+  generate_cluster_network(
+    distance_data = distance_data,
+    TM_norm_threshold = 0.5,
+    query_cluster_size_threshold = 2,
+    target_cluster_size_threshold = 2,
+    host_species = host,
+    file_name = file_path,
+    custom_colors = cols
+  )
+})
+
+
+names(networks) <- host_species_list
+
+```
+
+
+```{r}
+
+lou <- cluster_louvain(networks$`Bos taurus`)
+plot(lou, networks$`Bos taurus`, vertex.label = NA, vertex.size=5, edge.arrow.size = .2)
+
+```
+
+
+```{r}
+
+all <- generate_cluster_network(
+    distance_data = distance_data,
+    TM_norm_threshold = 0.2,
+    query_cluster_size_threshold = 3,
+    target_cluster_size_threshold = 3,
+    host_species = "none",
+    file_name = "./figures/multimer_clustering/LIC13259_no_his/all_host_species.pdf",
+    custom_colors = cols
+  )
+
+
+
+lou <- cluster_louvain(all)
+plot(lou, all, vertex.label = NA, vertex.size=5, edge.arrow.size = .2)
+
+```
+
+### Analyse connectedness of networks
+
+```{r}
+
+name_map_inverse <- setNames(names(name_map), name_map)
+name_map_inverse[names(igraph::degree(networks$`Bos taurus`, mode="in",loops = F)%>%sort(decreasing = TRUE)%>%.[1:20])]
+
+
+```
+
+```{r}
+
+name_map_inverse[names(igraph::degree(all, mode="in",loops = F)%>%sort(decreasing = TRUE)%>%.[1:10])]
+
+```
+
+```{r}
+sessionInfo()
+```
+
+:::

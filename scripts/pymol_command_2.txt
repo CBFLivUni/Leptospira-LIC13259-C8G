@@ -1,0 +1,17 @@
+hide lines, all 
+show cartoon
+
+bg_color white
+set cartoon_fancy_helices, 1
+
+
+align Leptospira_borgpetersenii_nick_and_Mus_musculus_plasminogen_P06868, Leptospira_biflexa_nick_and_Mus_musculus_plasminogen_P06868
+
+align Leptospira_interrogans_nick_and_Mus_musculus_plasminogen_P06868, Leptospira_biflexa_nick_and_Mus_musculus_plasminogen_P06868
+
+align Leptospira_wolffii_nick_and_Mus_musculus_plasminogen_P06868, Leptospira_biflexa_nick_and_Mus_musculus_plasminogen_P06868
+
+align Leptospira_kmetyi_nick_and_Mus_musculus_plasminogen_P06868, Leptospira_biflexa_nick_and_Mus_musculus_plasminogen_P06868
+
+select chain B; color tv_red, sele
+select chain C; color grey90, sele

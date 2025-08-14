@@ -1,0 +1,145 @@
+---
+title: "Leptospira LIC13259-C8 screen"
+subtitle: "Multimer clustering analysis"
+author: "Emily Johnson"
+date: today
+date-format: short
+format:
+  html:
+    self-contained: true
+    theme: litera
+    toc: true
+editor: source
+code-block-bg: true
+code-block-border-left: "#31BAE9"
+---
+
+# Load libraries
+
+```{r}
+#| output: false
+#| messages: false
+#| warning: false
+
+library(tidyverse)
+library(cowplot)
+library(viridis)
+library(patchwork)
+library(tidytext)
+source("scripts/palettes.R")
+source("scripts/utilityFunctions.R")
+
+```
+
+
+# LIC13259
+
+## Read in data
+
+```{r}
+
+input_files <- list.files("results/LIC13259_no_his/multimer_clustering/",pattern = ".tsv", full.names = TRUE) 
+
+
+multimer_data <- extractMultimerClusters(input_files)
+
+```
+
+
+## Determine number of clusters per species combination
+
+```{r}
+
+cluster_counts <- multimer_data %>%
+  map_df(~ data.frame(
+    unique_clusters = n_distinct(.x$cluster_name) 
+  ), .id = "ID")
+
+```
+
+```{r}
+
+cluster_counts$lepto_species <- str_extract(cluster_counts$ID, "Leptospira_biflexa|Leptospira_borgpetersenii|Leptospira_interrogans_s.Copenhageni|Leptospira_interrogans|Leptospira_kmetyi|Leptospira_wolffii|Leptospira_ilyithenensis")
+
+cluster_counts$lepto_species <- gsub("_", " ", cluster_counts$lepto_species)
+cluster_counts$lepto_species <- factor(cluster_counts$lepto_species, ordered = TRUE, levels=c("Leptospira biflexa", "Leptospira ilyithenensis", "Leptospira kmetyi", "Leptospira wolffii", "Leptospira borgpetersenii", "Leptospira interrogans", "Leptospira interrogans s.Copenhageni"))
+
+
+cluster_counts$receptor_species <- str_extract(cluster_counts$ID, "Bos_taurus|Canis_lupus|Homo_sapiens|Macaca_mulatta|Mesocricetus_auratus|Mus_musculus|Rattus_norvegicus|Sus_scrofa")
+cluster_counts$receptor_species <- gsub("_", " ", cluster_counts$receptor_species)
+
+
+cluster_counts <- cluster_counts %>% 
+mutate(receptor_subunit = case_when(
+    grepl(pattern = "F1MX87|P07357|A0A1U7QEJ8|A0A8I6ACZ6", x = ID) ~ "C8A",
+    grepl(pattern = "F1N102|P07358|A0A1U7QQ34|P55314", x = ID) ~ "C8B",
+    grepl(pattern = "A8YXZ2|P07360|A0A1U8CH65|A6JT75", x = ID) ~ "C8G",
+    grepl(pattern = "A0A3Q0DCY6", x = ID) ~ "C8G2"
+    
+  )) %>%
+  #filter(grepl('C8G', receptor_subunit)) %>%
+  filter(!grepl('C8G2', receptor_subunit)) %>%
+  filter(!grepl('Copenhageni', lepto_species))
+  
+
+```
+
+
+## Plot cluster counts
+
+```{r}
+
+# Creating the plot
+cluster_count_plots <- ggplot(cluster_counts, aes(x = reorder_within(lepto_species, -unique_clusters, receptor_species), 
+                                                  y = unique_clusters, 
+                                                  fill = lepto_species)) +
+  geom_bar(stat = "identity", width = 0.6) +
+  facet_grid(receptor_subunit ~receptor_species, scales="free_x") +
+  #facet_wrap(~ receptor_species, ncol = 4, scales = "free_x") +
+  scale_fill_manual(values = project_palettes$lepto_species) + 
+  ylab("Total clusters") + 
+  xlab("Residue") +
+  scale_x_reordered() +
+  geom_text(aes(label = unique_clusters), vjust = 1.6) +
+  theme_cowplot() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1), 
+        legend.position = "none") 
+
+
+cluster_count_plots
+
+```
+
+
+```{r}
+
+save_plot(filename = "figures/multimer_clustering/LIC13259_no_his/LIC13259_no_his_cluster_counts.pdf", plot = cluster_count_plots, base_height = 6, base_width = 15, bg="white")
+
+```
+
+
+## Extract reprensentative clusters
+
+```{r}
+
+# Read and combine data
+multimer_data <- input_files %>%
+  map_dfr(~ read.table(.x, header = FALSE, sep = "\t", 
+                       col.names = c("unique_clusters", "ID")))
+
+
+cluster_counts <- data.frame(table(multimer_data$unique_clusters)) %>%
+  filter(Freq > 1) %>%
+  filter(!grepl(pattern = "A0A3Q0DCY6|F1MX87|P07357|A0A1U7QEJ8|A0A8I6ACZ6|F1N102|P07358|A0A1U7QQ34|P55314", x = Var1))
+
+
+mclm::write_txt(paste0(as.character(cluster_counts$Var1), ".pdb"), "./results/LIC13259_no_his/LIC13259_no_his_representive_clusters.txt", line_glue = "\n")
+
+
+```
+
+```{r}
+sessionInfo()
+```
+
+:::

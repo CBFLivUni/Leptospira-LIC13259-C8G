@@ -1,0 +1,234 @@
+---
+title: "Leptospira LIC13259-C8 screen"
+subtitle: "Fasta processing"
+author: "Emily Johnson"
+date: today
+date-format: short
+format:
+  html:
+    self-contained: true
+    theme: litera
+    toc: true
+editor: source
+code-block-bg: true
+code-block-border-left: "#31BAE9"
+---
+
+# Load libraries
+
+```{r}
+
+#| output: false
+library(seqinr)
+library(ape)
+library(Biostrings)
+library(tidyverse)
+source("scripts/palettes.R")
+
+```
+
+# LIC13259
+
+## Read in the data
+
+```{r}
+
+LIC13259_no_his_sequences <- readAAStringSet("raw_fasta/LIC13259_sequences_no_his_tag.fasta")
+
+```
+
+## Filter data and create annotation table
+
+```{r}
+
+# Remove duplicate sequences and fragments 
+LIC13259_no_his_fasta_sequences <- LIC13259_no_his_sequences[!duplicated(LIC13259_no_his_sequences@ranges@NAMES)]
+LIC13259_no_his_fasta_sequences <- LIC13259_no_his_fasta_sequences[!grepl("Fragment", LIC13259_no_his_fasta_sequences@ranges@NAMES)]
+
+
+# Create dataframe with annotation based off header information
+LIC13259_no_his_sequence_anno <- data.frame(LIC13259_no_his_fasta_sequences) %>% rownames_to_column()
+LIC13259_no_his_sequence_anno$species <- word(str_extract(LIC13259_no_his_sequence_anno$rowname, "L.*"), 1,2)
+LIC13259_no_his_sequence_anno$species[6] <- "L. interrogans s.Copenhageni"
+
+LIC13259_no_his_sequence_anno$annotation <- paste0(gsub("L. ", "Leptospira ", LIC13259_no_his_sequence_anno$species), " LIC13259_no_his")
+LIC13259_no_his_sequence_anno$annotation <- gsub(" ", "_", LIC13259_no_his_sequence_anno$annotation)
+
+# Add new column to denote whether species is leptospra species is pathogenetic or not (if known)
+# https://www3.paho.org/hq/dmdocuments/2016/2015-PHE-Leptospirosis-Picardeau.pdf
+# https://www.ncbi.nlm.nih.gov/pmc/articles/PMC10197099/
+
+LIC13259_no_his_sequence_anno <- LIC13259_no_his_sequence_anno %>%
+  mutate(Pathogenesis = case_when(
+    grepl(pattern = "illini|idonii|meyeri|yanagawae|terpstrae|wolbachii|vanthielii|biflexa|harrisiae|levettii|ilyithenensis", x = species) ~ "Saprophytic",
+    grepl(pattern = "noguchii|kirschneri|interrogans|kmetyi|alstonii|alexanderi|mayottensis|weilii|santarosai|borgpetersenii|yasudae|stimsonii|adleri|barantonii|ellisii", x = species) ~ "Pathogenic",
+    grepl(pattern = "licerasiae|wolffii|fainei|broomii|inadai|haakeii|hartskeerlii|neocaledonica|saintgironsiae", x = species) ~ "Intermediate",
+    
+  ))
+
+
+# Reorder fasta sequences and annotation to be alphabetical
+LIC13259_no_his_fasta_sequences <- LIC13259_no_his_fasta_sequences[order(LIC13259_no_his_sequence_anno$annotation)]
+LIC13259_no_his_sequence_anno <- LIC13259_no_his_sequence_anno[order(LIC13259_no_his_sequence_anno$annotation),]
+
+```
+
+
+```{r}
+
+# Make sure annotation is in the same order as the sequences 
+names(LIC13259_no_his_fasta_sequences) == LIC13259_no_his_sequence_anno$rowname
+
+```
+
+
+```{r}
+
+# Rename sequences with shorter/more concise names 
+names(LIC13259_no_his_fasta_sequences) <- LIC13259_no_his_sequence_anno$annotation
+
+```
+
+## Write filtered sequences and annotation to new files
+
+```{r}
+
+dir.create("processed_fasta/LIC13259_no_his/")
+
+# Create vector of suitable filepaths/file names
+filenames <- paste0("processed_fasta/LIC13259_no_his/", names(LIC13259_no_his_fasta_sequences), ".fasta") 
+
+# Create a list object of the vectors to be passed to pmap
+fastas <- list(LIC13259_no_his_fasta_sequences, LIC13259_no_his_sequence_anno$rowname, filenames)
+
+# Use pmap to run 'write.fasta' function on the fastas list
+pmap(fastas, write.fasta)
+
+```
+
+```{r}
+
+# Write all processed fastas to one file
+write.fasta(as.list(LIC13259_no_his_fasta_sequences), LIC13259_no_his_sequence_anno$annotation, "processed_fasta/LIC13259_no_his_fastas.fasta")
+
+```
+
+```{r}
+
+write.csv(LIC13259_no_his_sequence_anno, "data/LIC13259_no_his_sequence_annotation.csv")
+write_rds(LIC13259_no_his_fasta_sequences, "processed_fasta/LIC13259_no_his_fasta_sequences.rds")
+
+```
+
+# C8
+
+```{r}
+
+C8_sequences <- readAAStringSet("raw_fasta/uniprotkb_2024_10_18_rat_hamster_C8.fasta")
+
+```
+
+## Filter data and create annotation table
+
+```{r}
+
+# Remove duplicate sequences and fragments 
+C8_fasta_sequences <- C8_sequences[!duplicated(C8_sequences@ranges@NAMES)]
+C8_fasta_sequences <- C8_fasta_sequences[!grepl("Fragment", C8_fasta_sequences@ranges@NAMES)]
+
+
+# Create dataframe with annotation based off header information
+C8_sequence_anno <- data.frame(C8_fasta_sequences) %>% rownames_to_column() %>% dplyr::rename("fasta_sequences" = "C8_fasta_sequences")
+
+C8_sequence_anno$species <- word(str_extract(C8_sequence_anno$rowname, "OS=.*"), 1,2)
+C8_sequence_anno$species <- gsub("OS=", "", C8_sequence_anno$species)
+
+C8_sequence_anno$ID <- str_extract(C8_sequence_anno$rowname, "\\|.*\\|") %>% gsub("\\|", "", .)
+
+# Add alpha/beta/gamma column 
+C8_sequence_anno$type <- ifelse(grepl("alpha", C8_sequence_anno$rowname, ignore.case = TRUE), "alpha",
+                        ifelse(grepl("beta", C8_sequence_anno$rowname, ignore.case = TRUE), "beta",
+                        ifelse(grepl("gamma", C8_sequence_anno$rowname, ignore.case = TRUE), "gamma", NA)))
+
+
+C8_sequence_anno$annotation <- paste0(gsub(" ", "_", C8_sequence_anno$species), "_C8_", C8_sequence_anno$type, "_", C8_sequence_anno$ID)
+
+```
+
+
+```{r}
+
+# Make sure annotation is in the same order as the sequences 
+names(C8_fasta_sequences) == C8_sequence_anno$rowname
+
+```
+
+
+```{r}
+
+# Create vector of suitable filepaths/file names
+C8_sequence_anno$filenames <- gsub("\\(|\\)", "", C8_sequence_anno$annotation)
+C8_sequence_anno$filenames <- gsub(" ", "_", C8_sequence_anno$filenames)
+
+# Rename sequences with shorter/more concise names 
+names(C8_fasta_sequences) <- C8_sequence_anno$filenames
+
+```
+
+
+
+## Write filtered sequences and annotation to new files
+
+```{r}
+
+# Create vector of suitable filepaths/file names
+filenames <- paste0("processed_fasta/C8/", names(C8_fasta_sequences), ".fasta") 
+
+# Create a list object of the vectors to be passed to pmap
+fastas <- list(C8_fasta_sequences, C8_sequence_anno$rowname, filenames)
+
+# Use pmap to run 'write.fasta' function on the fastas list
+pmap(fastas, write.fasta)
+
+```
+
+```{r}
+
+# Write all processed fastas to one file
+write.fasta(as.list(C8_fasta_sequences), C8_sequence_anno$filenames, "processed_fasta/C8_fasta_filtered.fasta")
+
+```
+
+```{r}
+
+write.csv(C8_sequence_anno, "data/C8_sequence_annotation.csv")
+write_rds(C8_fasta_sequences, "processed_fasta/C8_fasta_sequences.rds")
+
+```
+
+
+# Create files for all fasta sequences and file containing fasta sequences sent by Nick & C8 sequences (for use in alphapulldown)
+
+## All fasta filtered
+
+```{r}
+LIC13259_no_his_C8_sequences <- c(LIC13259_no_his_fasta_sequences, C8_fasta_sequences)
+  
+write.fasta(as.list(LIC13259_no_his_C8_sequences), c(names(LIC13259_no_his_fasta_sequences), names(C8_fasta_sequences)), "processed_fasta/LIC13259_no_his_C8_fasta.fasta")
+
+```
+
+## Bait and candidate files
+
+```{r}
+
+mclm::write_txt(names(LIC13259_no_his_fasta_sequences), "LIC13259_no_his_baits.txt", line_glue = "\n") 
+mclm::write_txt(names(C8_fasta_sequences), "C8_all_species_candidates.txt", line_glue = "\n") 
+
+```
+
+
+```{r}
+sessionInfo()
+```
+:::
