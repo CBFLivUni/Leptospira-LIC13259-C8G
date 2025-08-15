@@ -124,7 +124,7 @@ write_rds(LIC13259_no_his_fasta_sequences, "processed_fasta/LIC13259_no_his_fast
 
 ```{r}
 
-C8_sequences <- readAAStringSet("raw_fasta/uniprotkb_2024_10_18_rat_hamster_C8.fasta")
+C8_sequences <- readAAStringSet("raw_fasta/c8_uniprotkb_2024_07_25.fasta")
 
 ```
 
