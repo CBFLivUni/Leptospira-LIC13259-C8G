@@ -2,9 +2,7 @@
  
 This repo documents the code used to carry out the analysis for the paper titled: 'AlphaFold reveals how pathogenic Leptospira use cross-kingdom thiol-disulphide exchange to evade the complement membrane attack complex'.
 
-<center>
 ![image](https://github.com/CBFLivUni/Leptospira-LIC13259-C8G/blob/main/summary_figure.png)
-</center>
 
 ## Set-up 
 
