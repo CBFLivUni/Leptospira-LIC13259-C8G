@@ -1,3 +1,5 @@
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.16903768.svg)](https://doi.org/10.5281/zenodo.16903768)
+
 # Leptospira LIC13259 C8G screen
  
 This repo documents the code used to carry out the analysis for the paper titled: 'AlphaFold reveals how pathogenic Leptospira use cross-kingdom thiol-disulphide exchange to evade the complement membrane attack complex'.
