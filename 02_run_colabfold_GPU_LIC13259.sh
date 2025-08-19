@@ -64,7 +64,7 @@ echo -----------------
 # It should be run inside the project directory following on from the fasta processing step
 
 # It runs colabfold for all fasta files in target directory
-# 3 random seeds and includes relaxation step 
+# 3 models and includes relaxation step 
 
 cd ${SLURM_SUBMIT_DIR}/processed_fasta/LIC13259_no_his/
 
@@ -85,7 +85,7 @@ for i in *.fasta; do
   FASTA=$(basename ${i} .fasta)
   echo "Creating colabfold model for ${FASTA}.fasta"
   
-  colabfold_batch --num-models 1 --use-gpu-relax --amber ${FASTA}.fasta ${FASTA}/ 
+  colabfold_batch --num-models 3 --use-gpu-relax --amber ${FASTA}.fasta ${FASTA}/ 
 
 done
 
