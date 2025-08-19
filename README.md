@@ -4,7 +4,7 @@ This repo documents the code used to carry out the analysis for the paper titled
 
 ## Set-up 
 
-Analysis was carried out on the Barkla1 cluster. It should be fully reproducible starting from two fasta files: 'LIC13259_sequences_no_his_tag.fasta' and 'c8_uniprotkb_2024_07_25.fasta'.
+Analysis was carried out on the Barkla1 cluster. It should be fully reproducible starting from two fasta files: 'LIC13259_sequences_no_his_tag.fasta' and 'c8_uniprotkb_2024_07_25.fasta' contained within the `raw_fasta` folder.
 
 In addition to this, the analysis requires three key pieces of software to be installed (in addition to a standard Rstudio set-up): 
 - [ColabFold](https://github.com/sokrypton/ColabFold) installation instructions can be found here
